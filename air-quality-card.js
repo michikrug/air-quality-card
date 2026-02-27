@@ -1,12 +1,12 @@
 /**
- * Air Quality Card v2.4.1
+ * Air Quality Card v2.5.0
  * A custom Home Assistant card for air quality visualization
  * Thresholds based on WHO 2021 guidelines and ASHRAE standards
  *
  * https://github.com/KadenThomp36/air-quality-card
  */
 
-const CARD_VERSION = '2.4.1';
+const CARD_VERSION = '2.5.0';
 
 class AirQualityCard extends HTMLElement {
   // Visual editor using getConfigForm (preferred modern approach)
@@ -17,22 +17,22 @@ class AirQualityCard extends HTMLElement {
         {
           type: 'grid',
           schema: [
-            { name: 'co2_entity', selector: { entity: { domain: 'sensor' } } },
-            { name: 'pm25_entity', selector: { entity: { domain: 'sensor' } } },
+            { name: 'co2_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_dioxide' }] } } },
+            { name: 'pm25_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm25' }] } } },
           ]
         },
         {
           type: 'grid',
           schema: [
             { name: 'hcho_entity', selector: { entity: { domain: 'sensor' } } },
-            { name: 'tvoc_entity', selector: { entity: { domain: 'sensor' } } },
+            { name: 'tvoc_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'volatile_organic_compounds' }] } } },
           ]
         },
         {
           type: 'grid',
           schema: [
-            { name: 'humidity_entity', selector: { entity: { domain: 'sensor' } } },
-            { name: 'temperature_entity', selector: { entity: { domain: 'sensor' } } },
+            { name: 'humidity_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'humidity' }] } } },
+            { name: 'temperature_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'temperature' }] } } },
           ]
         },
         {
@@ -42,22 +42,22 @@ class AirQualityCard extends HTMLElement {
             {
               type: 'grid',
               schema: [
-                { name: 'outdoor_co2_entity', selector: { entity: { domain: 'sensor' } } },
-                { name: 'outdoor_pm25_entity', selector: { entity: { domain: 'sensor' } } },
+                { name: 'outdoor_co2_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_dioxide' }] } } },
+                { name: 'outdoor_pm25_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm25' }] } } },
               ]
             },
             {
               type: 'grid',
               schema: [
                 { name: 'outdoor_hcho_entity', selector: { entity: { domain: 'sensor' } } },
-                { name: 'outdoor_tvoc_entity', selector: { entity: { domain: 'sensor' } } },
+                { name: 'outdoor_tvoc_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'volatile_organic_compounds' }] } } },
               ]
             },
             {
               type: 'grid',
               schema: [
-                { name: 'outdoor_humidity_entity', selector: { entity: { domain: 'sensor' } } },
-                { name: 'outdoor_temperature_entity', selector: { entity: { domain: 'sensor' } } },
+                { name: 'outdoor_humidity_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'humidity' }] } } },
+                { name: 'outdoor_temperature_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'temperature' }] } } },
               ]
             },
           ]
@@ -67,7 +67,6 @@ class AirQualityCard extends HTMLElement {
           title: 'Advanced',
           schema: [
             { name: 'air_quality_entity', selector: { entity: { domain: 'sensor' } } },
-            { name: 'recommendation_entity', selector: { entity: { domain: 'sensor' } } },
             { name: 'hours_to_show', selector: { number: { min: 1, max: 168, mode: 'box', unit_of_measurement: 'hours' } } },
             { name: 'temperature_unit', selector: { select: { options: [{ value: 'auto', label: 'Auto (from HA)' }, { value: 'F', label: 'Fahrenheit (°F)' }, { value: 'C', label: 'Celsius (°C)' }], mode: 'dropdown' } } },
           ]
@@ -89,7 +88,6 @@ class AirQualityCard extends HTMLElement {
           outdoor_tvoc_entity: 'Outdoor tVOC Sensor',
           outdoor_humidity_entity: 'Outdoor Humidity Sensor',
           outdoor_temperature_entity: 'Outdoor Temperature Sensor',
-          recommendation_entity: 'Recommendation Sensor (optional)',
           hours_to_show: 'Graph History',
           temperature_unit: 'Temperature Unit'
         };
@@ -351,15 +349,10 @@ class AirQualityCard extends HTMLElement {
   }
 
   _getRecommendation() {
-    // If recommendation_entity is configured, use it
-    if (this._config.recommendation_entity) {
-      const rec = this._getState(this._config.recommendation_entity);
-      return rec !== 'unknown' ? rec : null;
-    }
-
-    // Otherwise calculate from sensor values
     const co2 = this._config.co2_entity ? this._getNumericState(this._config.co2_entity) : 0;
     const pm25 = this._config.pm25_entity ? this._getNumericState(this._config.pm25_entity) : 0;
+    const hcho = this._config.hcho_entity ? this._getNumericState(this._config.hcho_entity) : 0;
+    const tvoc = this._config.tvoc_entity ? this._getNumericState(this._config.tvoc_entity) : 0;
     const humidity = this._config.humidity_entity ? this._getNumericState(this._config.humidity_entity) : 45;
 
     // Read outdoor values for smart recommendations
@@ -367,10 +360,12 @@ class AirQualityCard extends HTMLElement {
     const outdoorPm25 = this._config.outdoor_pm25_entity ? this._getNumericState(this._config.outdoor_pm25_entity) : null;
     const outdoorIsWorse = (outdoorPm25 !== null && outdoorPm25 > pm25) || (outdoorCo2 !== null && outdoorCo2 > co2);
 
-    // Standard indoor logic first
+    // Priority waterfall
     let rec = 'All Good';
     if (co2 > 1500) rec = 'Ventilate Now';
     else if (pm25 > 35) rec = 'Run Air Purifier';
+    else if (hcho > 100) rec = 'Ventilate — Formaldehyde';
+    else if (tvoc > 500) rec = 'Ventilate — VOCs Elevated';
     else if (pm25 > 25 && co2 > 1000) rec = 'Air Purifier + Ventilate';
     else if (pm25 > 25) rec = 'Run Air Purifier';
     else if (co2 > 1000) rec = 'Open Window';
@@ -379,9 +374,8 @@ class AirQualityCard extends HTMLElement {
     else if (co2 > 800 || pm25 > 15) rec = 'Consider Ventilating';
 
     // Override ventilation recommendations if outdoor air is worse
-    const ventilationRecs = ['Ventilate Now', 'Open Window', 'Consider Ventilating', 'Air Purifier + Ventilate'];
+    const ventilationRecs = ['Ventilate Now', 'Open Window', 'Consider Ventilating', 'Air Purifier + Ventilate', 'Ventilate — Formaldehyde', 'Ventilate — VOCs Elevated'];
     if (outdoorIsWorse && ventilationRecs.includes(rec)) {
-      // If indoor PM2.5 is also bad, keep the purifier part
       if (pm25 > 25) return 'Run Air Purifier';
       return 'Keep Windows Closed';
     }
@@ -397,6 +391,8 @@ class AirQualityCard extends HTMLElement {
       'Run Air Purifier': 'mdi:air-purifier',
       'Air Purifier + Ventilate': 'mdi:alert',
       'Ventilate Now': 'mdi:alert-circle',
+      'Ventilate — Formaldehyde': 'mdi:alert-circle',
+      'Ventilate — VOCs Elevated': 'mdi:alert-circle',
       'Keep Windows Closed': 'mdi:window-closed-variant',
       'Too Dry': 'mdi:water-percent',
       'Too Humid': 'mdi:water'
@@ -822,6 +818,12 @@ class AirQualityCard extends HTMLElement {
         subtitle = `CO₂: ${Math.round(co2)} ppm, PM2.5: ${pm25.toFixed(0)} μg/m³`;
       } else if (recommendation === 'Ventilate Now' && co2 !== null) {
         subtitle = `CO₂ at ${Math.round(co2)} ppm - may affect focus`;
+      } else if (recommendation === 'Ventilate — Formaldehyde') {
+        const hcho = this._config.hcho_entity ? this._getNumericState(this._config.hcho_entity) : null;
+        subtitle = hcho !== null ? `HCHO at ${hcho.toFixed(0)} ppb - ventilation needed` : 'Formaldehyde levels elevated';
+      } else if (recommendation === 'Ventilate — VOCs Elevated') {
+        const tvoc = this._config.tvoc_entity ? this._getNumericState(this._config.tvoc_entity) : null;
+        subtitle = tvoc !== null ? `tVOC at ${tvoc.toFixed(0)} ppb - ventilation needed` : 'VOC levels elevated';
       } else if (recommendation === 'Too Dry' && humidity !== null) {
         subtitle = `Humidity at ${Math.round(humidity)}% - consider humidifier`;
       } else if (recommendation === 'Too Humid' && humidity !== null) {
@@ -841,7 +843,7 @@ class AirQualityCard extends HTMLElement {
       recSubtitle.textContent = subtitle;
 
       const isGood = recommendation === 'All Good';
-      const isPoor = ['Run Air Purifier', 'Open Window', 'Ventilate Now', 'Air Purifier + Ventilate', 'Keep Windows Closed'].includes(recommendation);
+      const isPoor = ['Run Air Purifier', 'Open Window', 'Ventilate Now', 'Air Purifier + Ventilate', 'Keep Windows Closed', 'Ventilate — Formaldehyde', 'Ventilate — VOCs Elevated'].includes(recommendation);
       recIcon.style.color = isGood ? 'var(--aq-excellent)' : (isPoor ? 'var(--aq-poor)' : 'var(--aq-moderate)');
       recContainer.style.background = isGood ?
         'rgba(76, 175, 80, 0.1)' : (isPoor ? 'rgba(255, 152, 0, 0.15)' : 'rgba(255, 193, 7, 0.1)');
@@ -1321,7 +1323,6 @@ if (LitElement && !customElements.get('air-quality-card-editor')) {
         outdoor_humidity_entity: 'Outdoor Humidity Sensor (optional)',
         outdoor_temperature_entity: 'Outdoor Temperature Sensor (optional)',
         air_quality_entity: 'Air Quality Index (optional)',
-        recommendation_entity: 'Recommendation Sensor (optional)',
         hours_to_show: 'Graph History (hours)',
         temperature_unit: 'Temperature Unit'
       };
@@ -1331,20 +1332,19 @@ if (LitElement && !customElements.get('air-quality-card-editor')) {
     _schema() {
       return [
         { name: 'name', selector: { text: {} } },
-        { name: 'co2_entity', selector: { entity: { domain: 'sensor' } } },
-        { name: 'pm25_entity', selector: { entity: { domain: 'sensor' } } },
+        { name: 'co2_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_dioxide' }] } } },
+        { name: 'pm25_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm25' }] } } },
         { name: 'hcho_entity', selector: { entity: { domain: 'sensor' } } },
-        { name: 'tvoc_entity', selector: { entity: { domain: 'sensor' } } },
-        { name: 'humidity_entity', selector: { entity: { domain: 'sensor' } } },
-        { name: 'temperature_entity', selector: { entity: { domain: 'sensor' } } },
-        { name: 'outdoor_co2_entity', selector: { entity: { domain: 'sensor' } } },
-        { name: 'outdoor_pm25_entity', selector: { entity: { domain: 'sensor' } } },
+        { name: 'tvoc_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'volatile_organic_compounds' }] } } },
+        { name: 'humidity_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'humidity' }] } } },
+        { name: 'temperature_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'temperature' }] } } },
+        { name: 'outdoor_co2_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_dioxide' }] } } },
+        { name: 'outdoor_pm25_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm25' }] } } },
         { name: 'outdoor_hcho_entity', selector: { entity: { domain: 'sensor' } } },
-        { name: 'outdoor_tvoc_entity', selector: { entity: { domain: 'sensor' } } },
-        { name: 'outdoor_humidity_entity', selector: { entity: { domain: 'sensor' } } },
-        { name: 'outdoor_temperature_entity', selector: { entity: { domain: 'sensor' } } },
+        { name: 'outdoor_tvoc_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'volatile_organic_compounds' }] } } },
+        { name: 'outdoor_humidity_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'humidity' }] } } },
+        { name: 'outdoor_temperature_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'temperature' }] } } },
         { name: 'air_quality_entity', selector: { entity: { domain: 'sensor' } } },
-        { name: 'recommendation_entity', selector: { entity: { domain: 'sensor' } } },
         { name: 'hours_to_show', selector: { number: { min: 1, max: 168, mode: 'box' } } },
         { name: 'temperature_unit', selector: { select: { options: [{ value: 'auto', label: 'Auto (from HA)' }, { value: 'F', label: 'Fahrenheit (°F)' }, { value: 'C', label: 'Celsius (°C)' }], mode: 'dropdown' } } }
       ];

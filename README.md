@@ -56,7 +56,6 @@ pm25_entity: sensor.air_quality_pm25
 humidity_entity: sensor.air_quality_humidity
 temperature_entity: sensor.air_quality_temperature
 air_quality_entity: sensor.air_quality_index
-recommendation_entity: sensor.air_quality_recommendation
 hours_to_show: 24
 temperature_unit: C
 outdoor_co2_entity: sensor.outdoor_co2
@@ -75,7 +74,6 @@ outdoor_pm25_entity: sensor.outdoor_pm25
 | `humidity_entity` | string | No* | - | Humidity sensor entity ID |
 | `temperature_entity` | string | No* | - | Temperature sensor entity ID |
 | `air_quality_entity` | string | No | - | Overall air quality index entity |
-| `recommendation_entity` | string | No | - | Recommendation template sensor |
 | `hours_to_show` | number | No | 24 | Hours of history to display (1-168) |
 | `temperature_unit` | string | No | "auto" | Temperature unit: "auto" (detect from HA), "F" (Fahrenheit), or "C" (Celsius) |
 | `outdoor_co2_entity` | string | No | - | Outdoor CO2 sensor for comparison |
@@ -96,39 +94,9 @@ Configure outdoor sensor entities to see a **dashed comparison line** on each gr
 - Current outdoor values appear next to indoor readings
 - **Smart recommendations** avoid suggesting ventilation when outdoor air is worse (e.g., "Keep Windows Closed" instead of "Open Window")
 
-## Recommendation Sensor
+## Built-in Recommendations
 
-For the best experience, create a template sensor that provides recommendations. Add this to your `configuration.yaml`:
-
-```yaml
-template:
-  - sensor:
-      - name: "Air Quality Recommendation"
-        unique_id: air_quality_recommendation
-        state: >
-          {% set co2 = states('sensor.YOUR_CO2_SENSOR') | float(0) %}
-          {% set pm25 = states('sensor.YOUR_PM25_SENSOR') | float(0) %}
-          {% set humidity = states('sensor.YOUR_HUMIDITY_SENSOR') | float(0) %}
-          {% if co2 > 1500 %}
-            Ventilate Now
-          {% elif pm25 > 35 %}
-            Run Air Purifier
-          {% elif pm25 > 25 and co2 > 1000 %}
-            Air Purifier + Ventilate
-          {% elif pm25 > 25 %}
-            Run Air Purifier
-          {% elif co2 > 1000 %}
-            Open Window
-          {% elif humidity < 30 %}
-            Too Dry
-          {% elif humidity > 60 %}
-            Too Humid
-          {% elif co2 > 800 or pm25 > 15 %}
-            Consider Ventilating
-          {% else %}
-            All Good
-          {% endif %}
-```
+The card automatically generates actionable recommendations based on your sensor readings — no template sensors needed. It evaluates CO2, PM2.5, HCHO, tVOC, and humidity levels, and when outdoor sensors are configured, it avoids suggesting ventilation when outdoor air is worse.
 
 ## Health Thresholds
 
