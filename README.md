@@ -182,7 +182,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 If you find this card useful, consider buying me a coffee!
 
-[![Buy Me a Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/kadenthomp36)
+[![Buy Me a Coffee](https://raw.githubusercontent.com/KadenThomp36/air-quality-card/main/images/bmc-button.png)](https://buymeacoffee.com/kadenthomp36)
 
 ## Credits
 
