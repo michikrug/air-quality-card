@@ -33,28 +33,10 @@ class MockHTMLElement {
   dispatchEvent() {}
 }
 
-// Mock LitElement base for fallback editor
-// The card does: const LitElement = Object.getPrototypeOf(customElements.get("hui-masonry-view"))
-// So we need a class whose getPrototypeOf returns a class with html/css on prototype
-class MockLitElementBase {
-  static get properties() { return {}; }
-  static get styles() { return ''; }
-  render() { return ''; }
-}
-MockLitElementBase.prototype.html = (strings, ...values) => strings.join('');
-MockLitElementBase.prototype.css = (strings, ...values) => strings.join('');
-
-// hui-masonry-view extends LitElement, so getPrototypeOf returns LitElement
-class MockHuiView extends MockLitElementBase {}
-
 const registeredElements = {};
 const mockCustomElements = {
   define(name, cls) { registeredElements[name] = cls; },
-  get(name) {
-    // Return a mock for hui-masonry-view so LitElement extraction works
-    if (name === 'hui-masonry-view' || name === 'hui-view') return MockHuiView;
-    return registeredElements[name];
-  }
+  get(name) { return registeredElements[name]; }
 };
 
 // Patch globals
