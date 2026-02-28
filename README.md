@@ -6,6 +6,19 @@ A custom Home Assistant Lovelace card for monitoring indoor air quality with bea
 
 ![Air Quality Card Preview](https://raw.githubusercontent.com/KadenThomp36/air-quality-card/main/images/preview.png)
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Built-in Recommendations](#built-in-recommendations)
+- [Health Thresholds](#health-thresholds)
+- [Supported Devices](#supported-devices)
+- [Development](#development)
+- [Other Cards](#other-cards)
+- [Star History](#star-history)
+- [Support](#support)
+
 ## Features
 
 - **Real-time monitoring** of CO, CO2, PM2.5, PM10, PM1, PM0.3, HCHO, tVOC, humidity, and temperature
@@ -226,6 +239,12 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+## Other Cards
+
+If you like this card, check out my other Home Assistant cards:
+
+- [Garage Card](https://github.com/KadenThomp36/garage-card) — A top-down visual garage card with door state, car presence, and light control
 
 ## Star History
 
