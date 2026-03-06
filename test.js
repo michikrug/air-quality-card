@@ -33,10 +33,23 @@ class MockHTMLElement {
   dispatchEvent() {}
 }
 
+// Mock LitElement base for the editor
+class MockLitElementBase {
+  static get properties() { return {}; }
+  static get styles() { return ''; }
+  render() { return ''; }
+}
+MockLitElementBase.prototype.html = (strings, ...values) => strings.join('');
+MockLitElementBase.prototype.css = (strings, ...values) => strings.join('');
+class MockHuiView extends MockLitElementBase {}
+
 const registeredElements = {};
 const mockCustomElements = {
   define(name, cls) { registeredElements[name] = cls; },
-  get(name) { return registeredElements[name]; }
+  get(name) {
+    if (name === 'hui-masonry-view' || name === 'hui-view') return MockHuiView;
+    return registeredElements[name];
+  }
 };
 
 // Patch globals
@@ -366,11 +379,21 @@ assert(card.getCardSize() === 13, 'All 10 sensors = 13');
 // GETCONFIG FORM TESTS
 // ============================================================
 
-section('getConfigForm Structure');
+section('Editor Structure');
 
-const form = CardClass.getConfigForm();
-assert(form.schema && form.schema.length > 0, 'Schema exists');
-assert(typeof form.computeLabel === 'function', 'computeLabel is a function');
+// Card should have getConfigElement
+assert(typeof CardClass.getConfigElement === 'function', 'getConfigElement exists');
+
+// Editor class should be registered
+const EditorClass = registeredElements['air-quality-card-editor'];
+assert(EditorClass !== undefined, 'Editor custom element registered');
+
+// Test editor schema and labels
+const editor = new EditorClass();
+editor.setConfig({ co2_entity: 'sensor.co2' });
+const schema = editor._schema();
+assert(schema && schema.length > 0, 'Editor schema exists');
+assert(typeof editor._computeLabel === 'function', 'computeLabel is a function');
 
 // Check all expected labels exist
 const allLabels = [
@@ -382,27 +405,27 @@ const allLabels = [
   'air_quality_entity', 'hours_to_show', 'temperature_unit'
 ];
 for (const name of allLabels) {
-  const label = form.computeLabel({ name });
+  const label = editor._computeLabel({ name });
   assert(label !== name, `Label for ${name} is defined (got: "${label}")`);
 }
 
 // Check expandable sections exist
-function findExpandable(schema, title) {
-  for (const item of schema) {
+function findExpandable(schemaArr, title) {
+  for (const item of schemaArr) {
     if (item.type === 'expandable' && item.title === title) return item;
   }
   return null;
 }
 
-const additionalSection = findExpandable(form.schema, 'Additional Sensors');
+const additionalSection = findExpandable(schema, 'Additional Sensors');
 assert(additionalSection !== null, 'Additional Sensors expandable exists');
 assert(additionalSection.flatten === true, 'Additional Sensors has flatten: true');
 
-const outdoorSection = findExpandable(form.schema, 'Outdoor Sensors');
+const outdoorSection = findExpandable(schema, 'Outdoor Sensors');
 assert(outdoorSection !== null, 'Outdoor Sensors expandable exists');
 assert(outdoorSection.flatten === true, 'Outdoor Sensors has flatten: true');
 
-const advancedSection = findExpandable(form.schema, 'Advanced');
+const advancedSection = findExpandable(schema, 'Advanced');
 assert(advancedSection !== null, 'Advanced expandable exists');
 assert(advancedSection.flatten === true, 'Advanced has flatten: true');
 

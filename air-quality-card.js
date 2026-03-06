@@ -1,144 +1,16 @@
 /**
- * Air Quality Card v2.6.0
+ * Air Quality Card v2.6.1
  * A custom Home Assistant card for air quality visualization
  * Thresholds based on WHO 2021 guidelines and ASHRAE standards
  *
  * https://github.com/KadenThomp36/air-quality-card
  */
 
-const CARD_VERSION = '2.6.0';
+const CARD_VERSION = '2.6.1';
 
 class AirQualityCard extends HTMLElement {
-  // Visual editor using getConfigForm (preferred modern approach)
-  static getConfigForm() {
-    return {
-      schema: [
-        { name: 'name', selector: { text: {} } },
-        {
-          type: 'grid',
-          schema: [
-            { name: 'co2_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_dioxide' }] } } },
-            { name: 'pm25_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm25' }] } } },
-          ]
-        },
-        {
-          type: 'grid',
-          schema: [
-            { name: 'humidity_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'humidity' }] } } },
-            { name: 'temperature_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'temperature' }] } } },
-          ]
-        },
-        {
-          type: 'expandable',
-          title: 'Additional Sensors',
-          flatten: true,
-          schema: [
-            {
-              type: 'grid',
-              schema: [
-                { name: 'co_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_monoxide' }] } } },
-                { name: 'hcho_entity', selector: { entity: { domain: 'sensor' } } },
-              ]
-            },
-            {
-              type: 'grid',
-              schema: [
-                { name: 'tvoc_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'volatile_organic_compounds' }] } } },
-                { name: 'pm1_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm1' }] } } },
-              ]
-            },
-            {
-              type: 'grid',
-              schema: [
-                { name: 'pm10_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm10' }] } } },
-                { name: 'pm03_entity', selector: { entity: { domain: 'sensor' } } },
-              ]
-            },
-          ]
-        },
-        {
-          type: 'expandable',
-          title: 'Outdoor Sensors',
-          flatten: true,
-          schema: [
-            {
-              type: 'grid',
-              schema: [
-                { name: 'outdoor_co2_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_dioxide' }] } } },
-                { name: 'outdoor_pm25_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm25' }] } } },
-              ]
-            },
-            {
-              type: 'grid',
-              schema: [
-                { name: 'outdoor_humidity_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'humidity' }] } } },
-                { name: 'outdoor_temperature_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'temperature' }] } } },
-              ]
-            },
-            {
-              type: 'grid',
-              schema: [
-                { name: 'outdoor_co_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_monoxide' }] } } },
-                { name: 'outdoor_hcho_entity', selector: { entity: { domain: 'sensor' } } },
-              ]
-            },
-            {
-              type: 'grid',
-              schema: [
-                { name: 'outdoor_tvoc_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'volatile_organic_compounds' }] } } },
-                { name: 'outdoor_pm1_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm1' }] } } },
-              ]
-            },
-            {
-              type: 'grid',
-              schema: [
-                { name: 'outdoor_pm10_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm10' }] } } },
-                { name: 'outdoor_pm03_entity', selector: { entity: { domain: 'sensor' } } },
-              ]
-            },
-          ]
-        },
-        {
-          type: 'expandable',
-          title: 'Advanced',
-          flatten: true,
-          schema: [
-            { name: 'air_quality_entity', selector: { entity: { domain: 'sensor' } } },
-            { name: 'hours_to_show', selector: { number: { min: 1, max: 168, mode: 'box', unit_of_measurement: 'hours' } } },
-            { name: 'temperature_unit', selector: { select: { options: [{ value: 'auto', label: 'Auto (from HA)' }, { value: 'F', label: 'Fahrenheit (°F)' }, { value: 'C', label: 'Celsius (°C)' }], mode: 'dropdown' } } },
-          ]
-        }
-      ],
-      computeLabel: (schema) => {
-        const labels = {
-          name: 'Card Name',
-          co2_entity: 'CO₂ Sensor',
-          pm25_entity: 'PM2.5 Sensor',
-          humidity_entity: 'Humidity Sensor',
-          temperature_entity: 'Temperature Sensor',
-          co_entity: 'CO (Carbon Monoxide) Sensor',
-          hcho_entity: 'Formaldehyde (HCHO) Sensor',
-          tvoc_entity: 'tVOC Sensor',
-          pm1_entity: 'PM1 Sensor',
-          pm10_entity: 'PM10 Sensor',
-          pm03_entity: 'PM0.3 Sensor',
-          outdoor_co2_entity: 'Outdoor CO₂',
-          outdoor_pm25_entity: 'Outdoor PM2.5',
-          outdoor_humidity_entity: 'Outdoor Humidity',
-          outdoor_temperature_entity: 'Outdoor Temperature',
-          outdoor_co_entity: 'Outdoor CO',
-          outdoor_hcho_entity: 'Outdoor HCHO',
-          outdoor_tvoc_entity: 'Outdoor tVOC',
-          outdoor_pm1_entity: 'Outdoor PM1',
-          outdoor_pm10_entity: 'Outdoor PM10',
-          outdoor_pm03_entity: 'Outdoor PM0.3',
-          air_quality_entity: 'Air Quality Index (optional)',
-          hours_to_show: 'Graph History',
-          temperature_unit: 'Temperature Unit'
-        };
-        return labels[schema.name] || schema.name;
-      }
-    };
+  static getConfigElement() {
+    return document.createElement('air-quality-card-editor');
   }
 
   static getStubConfig() {
@@ -1562,4 +1434,200 @@ console.info(
   'color: white; background: #4caf50; font-weight: bold;',
   'color: #4caf50; background: white; font-weight: bold;'
 );
+
+// ============================================
+// VISUAL CONFIGURATION EDITOR
+// Uses ha-form with expandable sections via getConfigElement
+// ============================================
+
+const LitElement = Object.getPrototypeOf(
+  customElements.get("hui-masonry-view") || customElements.get("hui-view")
+);
+const html = LitElement?.prototype?.html;
+const css = LitElement?.prototype?.css;
+
+if (LitElement && !customElements.get('air-quality-card-editor')) {
+  class AirQualityCardEditor extends LitElement {
+    static get properties() {
+      return {
+        hass: { type: Object },
+        _config: { type: Object }
+      };
+    }
+
+    setConfig(config) {
+      this._config = {
+        name: 'Air Quality',
+        hours_to_show: 24,
+        temperature_unit: 'auto',
+        ...config
+      };
+    }
+
+    _computeLabel(schema) {
+      const labels = {
+        name: 'Card Name',
+        co2_entity: 'CO₂ Sensor',
+        pm25_entity: 'PM2.5 Sensor',
+        humidity_entity: 'Humidity Sensor',
+        temperature_entity: 'Temperature Sensor',
+        co_entity: 'CO (Carbon Monoxide) Sensor',
+        hcho_entity: 'Formaldehyde (HCHO) Sensor',
+        tvoc_entity: 'tVOC Sensor',
+        pm1_entity: 'PM1 Sensor',
+        pm10_entity: 'PM10 Sensor',
+        pm03_entity: 'PM0.3 Sensor',
+        outdoor_co2_entity: 'Outdoor CO₂',
+        outdoor_pm25_entity: 'Outdoor PM2.5',
+        outdoor_humidity_entity: 'Outdoor Humidity',
+        outdoor_temperature_entity: 'Outdoor Temperature',
+        outdoor_co_entity: 'Outdoor CO',
+        outdoor_hcho_entity: 'Outdoor HCHO',
+        outdoor_tvoc_entity: 'Outdoor tVOC',
+        outdoor_pm1_entity: 'Outdoor PM1',
+        outdoor_pm10_entity: 'Outdoor PM10',
+        outdoor_pm03_entity: 'Outdoor PM0.3',
+        air_quality_entity: 'Air Quality Index (optional)',
+        hours_to_show: 'Graph History',
+        temperature_unit: 'Temperature Unit'
+      };
+      return labels[schema.name] || schema.name;
+    }
+
+    _schema() {
+      return [
+        { name: 'name', selector: { text: {} } },
+        {
+          type: 'grid',
+          schema: [
+            { name: 'co2_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_dioxide' }] } } },
+            { name: 'pm25_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm25' }] } } },
+          ]
+        },
+        {
+          type: 'grid',
+          schema: [
+            { name: 'humidity_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'humidity' }] } } },
+            { name: 'temperature_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'temperature' }] } } },
+          ]
+        },
+        {
+          type: 'expandable',
+          title: 'Additional Sensors',
+          flatten: true,
+          schema: [
+            {
+              type: 'grid',
+              schema: [
+                { name: 'co_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_monoxide' }] } } },
+                { name: 'hcho_entity', selector: { entity: { domain: 'sensor' } } },
+              ]
+            },
+            {
+              type: 'grid',
+              schema: [
+                { name: 'tvoc_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'volatile_organic_compounds' }] } } },
+                { name: 'pm1_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm1' }] } } },
+              ]
+            },
+            {
+              type: 'grid',
+              schema: [
+                { name: 'pm10_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm10' }] } } },
+                { name: 'pm03_entity', selector: { entity: { domain: 'sensor' } } },
+              ]
+            },
+          ]
+        },
+        {
+          type: 'expandable',
+          title: 'Outdoor Sensors',
+          flatten: true,
+          schema: [
+            {
+              type: 'grid',
+              schema: [
+                { name: 'outdoor_co2_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_dioxide' }] } } },
+                { name: 'outdoor_pm25_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm25' }] } } },
+              ]
+            },
+            {
+              type: 'grid',
+              schema: [
+                { name: 'outdoor_humidity_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'humidity' }] } } },
+                { name: 'outdoor_temperature_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'temperature' }] } } },
+              ]
+            },
+            {
+              type: 'grid',
+              schema: [
+                { name: 'outdoor_co_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'carbon_monoxide' }] } } },
+                { name: 'outdoor_hcho_entity', selector: { entity: { domain: 'sensor' } } },
+              ]
+            },
+            {
+              type: 'grid',
+              schema: [
+                { name: 'outdoor_tvoc_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'volatile_organic_compounds' }] } } },
+                { name: 'outdoor_pm1_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm1' }] } } },
+              ]
+            },
+            {
+              type: 'grid',
+              schema: [
+                { name: 'outdoor_pm10_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm10' }] } } },
+                { name: 'outdoor_pm03_entity', selector: { entity: { domain: 'sensor' } } },
+              ]
+            },
+          ]
+        },
+        {
+          type: 'expandable',
+          title: 'Advanced',
+          flatten: true,
+          schema: [
+            { name: 'air_quality_entity', selector: { entity: { domain: 'sensor' } } },
+            { name: 'hours_to_show', selector: { number: { min: 1, max: 168, mode: 'box', unit_of_measurement: 'hours' } } },
+            { name: 'temperature_unit', selector: { select: { options: [{ value: 'auto', label: 'Auto (from HA)' }, { value: 'F', label: 'Fahrenheit (°F)' }, { value: 'C', label: 'Celsius (°C)' }], mode: 'dropdown' } } },
+          ]
+        }
+      ];
+    }
+
+    render() {
+      if (!this._config) return html``;
+
+      return html`
+        <div class="card-config">
+          <ha-form
+            .hass=${this.hass}
+            .data=${this._config}
+            .schema=${this._schema()}
+            .computeLabel=${this._computeLabel}
+            @value-changed=${this._valueChanged}
+          ></ha-form>
+        </div>
+      `;
+    }
+
+    _valueChanged(ev) {
+      const newConfig = { type: 'custom:air-quality-card', ...ev.detail.value };
+      this.dispatchEvent(new CustomEvent('config-changed', {
+        detail: { config: newConfig },
+        bubbles: true,
+        composed: true
+      }));
+    }
+
+    static get styles() {
+      return css`
+        .card-config {
+          padding: 16px;
+        }
+      `;
+    }
+  }
+
+  customElements.define('air-quality-card-editor', AirQualityCardEditor);
+}
 
