@@ -6,7 +6,7 @@
  * https://github.com/KadenThomp36/air-quality-card
  */
 
-const CARD_VERSION = '2.7.1';
+const CARD_VERSION = '2.8.0';
 
 class AirQualityCard extends HTMLElement {
   static getConfigElement() {
@@ -26,7 +26,7 @@ class AirQualityCard extends HTMLElement {
     this._config = {};
     this._hass = null;
     this._rendered = false;
-    this._history = { co2: [], pm25: [], pm1: [], pm10: [], pm03: [], hcho: [], tvoc: [], co: [], radon: [], radon_longterm: [], humidity: [], temperature: [], outdoor_co2: [], outdoor_pm25: [], outdoor_pm1: [], outdoor_pm10: [], outdoor_pm03: [], outdoor_hcho: [], outdoor_tvoc: [], outdoor_co: [], outdoor_humidity: [], outdoor_temperature: [] };
+    this._history = { co2: [], pm25: [], pm1: [], pm10: [], pm03: [], pm4: [], hcho: [], tvoc: [], nox: [], co: [], radon: [], radon_longterm: [], humidity: [], temperature: [], outdoor_co2: [], outdoor_pm25: [], outdoor_pm1: [], outdoor_pm10: [], outdoor_pm03: [], outdoor_hcho: [], outdoor_tvoc: [], outdoor_co: [], outdoor_humidity: [], outdoor_temperature: [] };
     this._historyLoaded = false;
     this._graphData = {};
     this._isDragging = false;
@@ -37,8 +37,9 @@ class AirQualityCard extends HTMLElement {
 
     // Validate that at least one sensor entity is configured
     const hasEntity = config.co2_entity || config.pm25_entity || config.pm1_entity ||
-      config.pm10_entity || config.pm03_entity || config.hcho_entity ||
-      config.tvoc_entity || config.co_entity || config.radon_entity ||
+      config.pm10_entity || config.pm03_entity || config.pm4_entity ||
+      config.hcho_entity || config.tvoc_entity || config.nox_entity ||
+      config.co_entity || config.radon_entity ||
       config.radon_longterm_entity || config.humidity_entity || config.temperature_entity;
     if (!hasEntity) {
       throw new Error('Please configure at least one sensor entity');
@@ -76,6 +77,8 @@ class AirQualityCard extends HTMLElement {
     if (this._config.pm03_entity) size += 1;
     if (this._config.hcho_entity) size += 1;
     if (this._config.tvoc_entity) size += 1;
+    if (this._config.pm4_entity) size += 1;
+    if (this._config.nox_entity) size += 1;
     if (this._config.humidity_entity) size += 1;
     if (this._config.temperature_entity) size += 1;
     return size;
@@ -130,6 +133,14 @@ class AirQualityCard extends HTMLElement {
       if (this._config.tvoc_entity) {
         promises.push(this._fetchHistory(this._config.tvoc_entity, startTime, endTime));
         keys.push('tvoc');
+      }
+      if (this._config.pm4_entity) {
+        promises.push(this._fetchHistory(this._config.pm4_entity, startTime, endTime));
+        keys.push('pm4');
+      }
+      if (this._config.nox_entity) {
+        promises.push(this._fetchHistory(this._config.nox_entity, startTime, endTime));
+        keys.push('nox');
       }
       if (this._config.humidity_entity) {
         promises.push(this._fetchHistory(this._config.humidity_entity, startTime, endTime));
@@ -213,11 +224,51 @@ class AirQualityCard extends HTMLElement {
     return '#f44336';
   }
 
+  _isVOCIndex() {
+    if (this._config.tvoc_unit && this._config.tvoc_unit !== 'auto') {
+      return this._config.tvoc_unit === 'index';
+    }
+    // Auto-detect from entity unit_of_measurement
+    if (this._hass && this._config.tvoc_entity) {
+      const uom = this._hass.states[this._config.tvoc_entity]?.attributes?.unit_of_measurement;
+      if (uom === undefined || uom === null || uom === '' || uom?.toLowerCase() === 'voc index') return true;
+      if (uom === 'ppb' || uom === 'mg/m³') return false;
+    }
+    return false;
+  }
+
+  _getTVOCUnit() {
+    return this._isVOCIndex() ? '' : 'ppb';
+  }
+
   _getTVOCColor(value) {
+    if (this._isVOCIndex()) {
+      if (value < 100) return '#4caf50';
+      if (value < 150) return '#8bc34a';
+      if (value < 250) return '#ffc107';
+      if (value < 400) return '#ff9800';
+      return '#f44336';
+    }
     if (value < 100) return '#4caf50';
     if (value < 300) return '#8bc34a';
     if (value < 500) return '#ffc107';
     if (value < 1000) return '#ff9800';
+    return '#f44336';
+  }
+
+  _getPM4Color(value) {
+    if (value < 10) return '#4caf50';
+    if (value < 25) return '#8bc34a';
+    if (value < 37.5) return '#ffc107';
+    if (value < 50) return '#ff9800';
+    return '#f44336';
+  }
+
+  _getNOxColor(value) {
+    if (value < 20) return '#4caf50';
+    if (value < 50) return '#8bc34a';
+    if (value < 150) return '#ffc107';
+    if (value < 250) return '#ff9800';
     return '#f44336';
   }
 
@@ -481,6 +532,8 @@ class AirQualityCard extends HTMLElement {
     const showPM03 = !!this._config.pm03_entity;
     const showHCHO = !!this._config.hcho_entity;
     const showTVOC = !!this._config.tvoc_entity;
+    const showPM4 = !!this._config.pm4_entity;
+    const showNOx = !!this._config.nox_entity;
     const showHumidity = !!this._config.humidity_entity;
     const showTemp = !!this._config.temperature_entity;
 
@@ -956,7 +1009,7 @@ class AirQualityCard extends HTMLElement {
             <div class="graph-container" id="tvoc-graph-container" data-entity="${this._config.tvoc_entity}">
               <div class="graph-header">
                 <span class="graph-label">tVOC</span>
-                <span class="graph-value" id="tvoc-value">-- <span class="unit">ppb</span><span class="status" id="tvoc-status"></span></span>
+                <span class="graph-value" id="tvoc-value">-- <span class="unit">${this._config.tvoc_unit === 'index' ? '' : 'ppb'}</span><span class="status" id="tvoc-status"></span></span>
               </div>
               <div class="graph-wrapper">
                 <div class="graph" id="tvoc-graph">
@@ -970,6 +1023,48 @@ class AirQualityCard extends HTMLElement {
                 </div>
               </div>
               <div class="graph-time-axis" id="tvoc-time-axis"></div>
+            </div>
+            ` : ''}
+
+            ${showPM4 ? `
+            <div class="graph-container" id="pm4-graph-container" data-entity="${this._config.pm4_entity}">
+              <div class="graph-header">
+                <span class="graph-label">PM4</span>
+                <span class="graph-value" id="pm4-value">-- <span class="unit">μg/m³</span><span class="status" id="pm4-status"></span></span>
+              </div>
+              <div class="graph-wrapper">
+                <div class="graph" id="pm4-graph">
+                  <svg id="pm4-svg" viewBox="0 0 300 50" preserveAspectRatio="none"></svg>
+                </div>
+                <div class="graph-cursor" id="pm4-cursor"></div>
+                <div class="graph-tooltip" id="pm4-tooltip">
+                  <div class="graph-tooltip-value"></div>
+                  <div class="graph-tooltip-outdoor"></div>
+                  <div class="graph-tooltip-time"></div>
+                </div>
+              </div>
+              <div class="graph-time-axis" id="pm4-time-axis"></div>
+            </div>
+            ` : ''}
+
+            ${showNOx ? `
+            <div class="graph-container" id="nox-graph-container" data-entity="${this._config.nox_entity}">
+              <div class="graph-header">
+                <span class="graph-label">NOx</span>
+                <span class="graph-value" id="nox-value">-- <span class="unit">ppb</span><span class="status" id="nox-status"></span></span>
+              </div>
+              <div class="graph-wrapper">
+                <div class="graph" id="nox-graph">
+                  <svg id="nox-svg" viewBox="0 0 300 50" preserveAspectRatio="none"></svg>
+                </div>
+                <div class="graph-cursor" id="nox-cursor"></div>
+                <div class="graph-tooltip" id="nox-tooltip">
+                  <div class="graph-tooltip-value"></div>
+                  <div class="graph-tooltip-outdoor"></div>
+                  <div class="graph-tooltip-time"></div>
+                </div>
+              </div>
+              <div class="graph-time-axis" id="nox-time-axis"></div>
             </div>
             ` : ''}
 
@@ -1031,6 +1126,8 @@ class AirQualityCard extends HTMLElement {
     const pm03 = this._config.pm03_entity ? this._getNumericState(this._config.pm03_entity) : null;
     const hcho = this._config.hcho_entity ? this._getNumericState(this._config.hcho_entity) : null;
     const tvoc = this._config.tvoc_entity ? this._getNumericState(this._config.tvoc_entity) : null;
+    const pm4 = this._config.pm4_entity ? this._getNumericState(this._config.pm4_entity) : null;
+    const nox = this._config.nox_entity ? this._getNumericState(this._config.nox_entity) : null;
     const humidity = this._config.humidity_entity ? this._getNumericState(this._config.humidity_entity) : null;
     const temp = this._config.temperature_entity ? this._getNumericState(this._config.temperature_entity) : null;
     const recommendation = this._getRecommendation();
@@ -1289,14 +1386,48 @@ class AirQualityCard extends HTMLElement {
     // Update tVOC
     if (tvoc !== null) {
       const tvocColor = this._getTVOCColor(tvoc);
+      const tvocUnit = this._getTVOCUnit();
       const tvocValueEl = this.shadowRoot.getElementById('tvoc-value');
       if (tvocValueEl) {
-        tvocValueEl.innerHTML = `${tvoc.toFixed(1)} <span class="unit">ppb</span><span class="status" id="tvoc-status"></span>${outdoorSuffix('outdoor_tvoc_entity', tvoc, 'ppb')}`;
+        const unitSpan = tvocUnit ? ` <span class="unit">${tvocUnit}</span>` : '';
+        tvocValueEl.innerHTML = `${tvoc.toFixed(1)}${unitSpan}<span class="status" id="tvoc-status"></span>${outdoorSuffix('outdoor_tvoc_entity', tvoc, tvocUnit)}`;
         const statusEl = tvocValueEl.querySelector('.status');
-        statusEl.textContent = tvoc < 100 ? 'Excellent' : tvoc < 300 ? 'Good' : tvoc < 500 ? 'Moderate' : tvoc < 1000 ? 'Elevated' : 'Poor';
+        if (this._isVOCIndex()) {
+          statusEl.textContent = tvoc < 100 ? 'Excellent' : tvoc < 150 ? 'Good' : tvoc < 250 ? 'Moderate' : tvoc < 400 ? 'Elevated' : 'Poor';
+        } else {
+          statusEl.textContent = tvoc < 100 ? 'Excellent' : tvoc < 300 ? 'Good' : tvoc < 500 ? 'Moderate' : tvoc < 1000 ? 'Elevated' : 'Poor';
+        }
         statusEl.style.background = tvocColor + '22';
         statusEl.style.color = tvocColor;
         tvocValueEl.style.color = tvocColor;
+      }
+    }
+
+    // Update PM4
+    if (pm4 !== null) {
+      const pm4Color = this._getPM4Color(pm4);
+      const pm4ValueEl = this.shadowRoot.getElementById('pm4-value');
+      if (pm4ValueEl) {
+        pm4ValueEl.innerHTML = `${pm4.toFixed(1)} <span class="unit">μg/m³</span><span class="status" id="pm4-status"></span>`;
+        const statusEl = pm4ValueEl.querySelector('.status');
+        statusEl.textContent = pm4 < 10 ? 'Excellent' : pm4 < 25 ? 'Good' : pm4 < 37.5 ? 'Moderate' : pm4 < 50 ? 'Elevated' : 'Poor';
+        statusEl.style.background = pm4Color + '22';
+        statusEl.style.color = pm4Color;
+        pm4ValueEl.style.color = pm4Color;
+      }
+    }
+
+    // Update NOx
+    if (nox !== null) {
+      const noxColor = this._getNOxColor(nox);
+      const noxValueEl = this.shadowRoot.getElementById('nox-value');
+      if (noxValueEl) {
+        noxValueEl.innerHTML = `${nox.toFixed(1)} <span class="unit">ppb</span><span class="status" id="nox-status"></span>`;
+        const statusEl = noxValueEl.querySelector('.status');
+        statusEl.textContent = nox < 20 ? 'Excellent' : nox < 50 ? 'Good' : nox < 150 ? 'Moderate' : nox < 250 ? 'Elevated' : 'Poor';
+        statusEl.style.background = noxColor + '22';
+        statusEl.style.color = noxColor;
+        noxValueEl.style.color = noxColor;
       }
     }
 
@@ -1379,7 +1510,15 @@ class AirQualityCard extends HTMLElement {
       this._renderGraph('hcho', this._history.hcho, this._getHCHOColor.bind(this), 0, 300, 'ppb', this._history.outdoor_hcho);
     }
     if (this._config.tvoc_entity && this._history.tvoc.length) {
-      this._renderGraph('tvoc', this._history.tvoc, this._getTVOCColor.bind(this), 0, 1500, 'ppb', this._history.outdoor_tvoc);
+      const tvocUnit = this._getTVOCUnit();
+      const tvocMax = this._isVOCIndex() ? 500 : 1500;
+      this._renderGraph('tvoc', this._history.tvoc, this._getTVOCColor.bind(this), 0, tvocMax, tvocUnit, this._history.outdoor_tvoc);
+    }
+    if (this._config.pm4_entity && this._history.pm4.length) {
+      this._renderGraph('pm4', this._history.pm4, this._getPM4Color.bind(this), 0, 75, 'μg/m³');
+    }
+    if (this._config.nox_entity && this._history.nox.length) {
+      this._renderGraph('nox', this._history.nox, this._getNOxColor.bind(this), 0, 300, 'ppb');
     }
     if (this._config.humidity_entity && this._history.humidity.length) {
       this._renderGraph('humidity', this._history.humidity, this._getHumidityColor.bind(this), 0, 100, '%', this._history.outdoor_humidity);
@@ -1522,7 +1661,7 @@ class AirQualityCard extends HTMLElement {
   }
 
   _setupGraphInteractions() {
-    const graphIds = ['co', 'radon', 'co2', 'pm25', 'pm10', 'pm1', 'pm03', 'hcho', 'tvoc', 'humidity', 'temperature'].filter(id => {
+    const graphIds = ['co', 'radon', 'co2', 'pm25', 'pm10', 'pm1', 'pm03', 'pm4', 'hcho', 'tvoc', 'nox', 'humidity', 'temperature'].filter(id => {
       if (id === 'radon') return this._config.radon_entity || this._config.radon_longterm_entity;
       return this._config[`${id}_entity`];
     });
@@ -1729,6 +1868,8 @@ if (LitElement && !customElements.get('air-quality-card-editor')) {
         co_entity: 'CO (Carbon Monoxide) Sensor',
         hcho_entity: 'Formaldehyde (HCHO) Sensor',
         tvoc_entity: 'tVOC Sensor',
+        pm4_entity: 'PM4 Sensor',
+        nox_entity: 'NOx Sensor',
         pm1_entity: 'PM1 Sensor',
         pm10_entity: 'PM10 Sensor',
         pm03_entity: 'PM0.3 Sensor',
@@ -1745,7 +1886,8 @@ if (LitElement && !customElements.get('air-quality-card-editor')) {
         air_quality_entity: 'Air Quality Index (optional)',
         hours_to_show: 'Graph History',
         temperature_unit: 'Temperature Unit',
-        radon_unit: 'Radon Unit'
+        radon_unit: 'Radon Unit',
+        tvoc_unit: 'tVOC Measurement Type'
       };
       return labels[schema.name] || schema.name;
     }
@@ -1790,6 +1932,13 @@ if (LitElement && !customElements.get('air-quality-card-editor')) {
               type: 'grid',
               schema: [
                 { name: 'tvoc_entity', selector: { entity: { domain: 'sensor' } } },
+                { name: 'pm4_entity', selector: { entity: { domain: 'sensor' } } },
+              ]
+            },
+            {
+              type: 'grid',
+              schema: [
+                { name: 'nox_entity', selector: { entity: { domain: 'sensor' } } },
                 { name: 'pm1_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'pm1' }] } } },
               ]
             },
@@ -1853,6 +2002,7 @@ if (LitElement && !customElements.get('air-quality-card-editor')) {
             { name: 'hours_to_show', selector: { number: { min: 1, max: 168, mode: 'box', unit_of_measurement: 'hours' } } },
             { name: 'temperature_unit', selector: { select: { options: [{ value: 'auto', label: 'Auto (from HA)' }, { value: 'F', label: 'Fahrenheit (°F)' }, { value: 'C', label: 'Celsius (°C)' }], mode: 'dropdown' } } },
             { name: 'radon_unit', selector: { select: { options: [{ value: 'auto', label: 'Auto (from sensor)' }, { value: 'pCi/L', label: 'pCi/L (US)' }, { value: 'Bq/m³', label: 'Bq/m³ (International)' }], mode: 'dropdown' } } },
+            { name: 'tvoc_unit', selector: { select: { options: [{ value: 'auto', label: 'Auto-detect' }, { value: 'ppb', label: 'Absolute (ppb)' }, { value: 'index', label: 'VOC Index (Sensirion)' }], mode: 'dropdown' } } },
           ]
         }
       ];
