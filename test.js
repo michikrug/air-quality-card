@@ -1,9 +1,10 @@
 /**
- * Air Quality Card v2.6.0 — Unit Tests
+ * Air Quality Card v3.0.0 — Unit Tests
  * Run with: node test.js
  *
  * Tests color functions, recommendation waterfall, config validation,
- * and overall status logic by extracting methods from the card class.
+ * overall status logic, WAQI integration, outdoor-only display,
+ * and new sensor types (NO2, O3, SO2, AQI).
  */
 
 let passed = 0;
@@ -74,6 +75,7 @@ const card = new CardClass();
 card._hass = {
   config: { unit_system: { temperature: '°F' } },
   states: {},
+  entities: {},
   callApi: async () => []
 };
 card._config = {
@@ -173,12 +175,71 @@ assert(card._getTempColor(23) === '#ff9800', 'Temp 23C = orange');
 assert(card._getTempColor(28) === '#f44336', 'Temp 28C = red');
 
 // ============================================================
+// NEW COLOR FUNCTION TESTS: AQI, NO2, O3, SO2
+// ============================================================
+
+section('AQI Color');
+assert(card._getAQIColor(30) === '#4caf50', 'AQI 30 = green (good)');
+assert(card._getAQIColor(50) === '#4caf50', 'AQI 50 = green (good boundary)');
+assert(card._getAQIColor(75) === '#8bc34a', 'AQI 75 = light green (moderate)');
+assert(card._getAQIColor(120) === '#ffc107', 'AQI 120 = yellow (USG)');
+assert(card._getAQIColor(180) === '#ff9800', 'AQI 180 = orange (unhealthy)');
+assert(card._getAQIColor(250) === '#f44336', 'AQI 250 = red (very unhealthy)');
+assert(card._getAQIColor(400) === '#b71c1c', 'AQI 400 = dark red (hazardous)');
+
+section('AQI Status');
+assert(card._getAQIStatus(30) === 'Good', 'AQI 30 status = Good');
+assert(card._getAQIStatus(75) === 'Moderate', 'AQI 75 status = Moderate');
+assert(card._getAQIStatus(120) === 'USG', 'AQI 120 status = USG');
+assert(card._getAQIStatus(180) === 'Unhealthy', 'AQI 180 status = Unhealthy');
+assert(card._getAQIStatus(250) === 'Very Unhealthy', 'AQI 250 status = Very Unhealthy');
+assert(card._getAQIStatus(400) === 'Hazardous', 'AQI 400 status = Hazardous');
+
+section('NO2 Color');
+assert(card._getNO2Color(10) === '#4caf50', 'NO2 10 = green');
+assert(card._getNO2Color(30) === '#8bc34a', 'NO2 30 = light green');
+assert(card._getNO2Color(80) === '#ffc107', 'NO2 80 = yellow');
+assert(card._getNO2Color(150) === '#ff9800', 'NO2 150 = orange');
+assert(card._getNO2Color(300) === '#f44336', 'NO2 300 = red');
+
+section('O3 Color');
+assert(card._getO3Color(30) === '#4caf50', 'O3 30 = green');
+assert(card._getO3Color(70) === '#8bc34a', 'O3 70 = light green');
+assert(card._getO3Color(115) === '#ffc107', 'O3 115 = yellow');
+assert(card._getO3Color(160) === '#ff9800', 'O3 160 = orange');
+assert(card._getO3Color(250) === '#f44336', 'O3 250 = red');
+
+section('SO2 Color');
+assert(card._getSO2Color(10) === '#4caf50', 'SO2 10 = green');
+assert(card._getSO2Color(40) === '#8bc34a', 'SO2 40 = light green');
+assert(card._getSO2Color(100) === '#ffc107', 'SO2 100 = yellow');
+assert(card._getSO2Color(250) === '#ff9800', 'SO2 250 = orange');
+assert(card._getSO2Color(400) === '#f44336', 'SO2 400 = red');
+
+section('AQI Sub-Index Color');
+assert(card._getAQISubIndexColor(30) === '#4caf50', 'Sub-index 30 = green');
+assert(card._getAQISubIndexColor(75) === '#8bc34a', 'Sub-index 75 = light green');
+assert(card._getAQISubIndexColor(120) === '#ffc107', 'Sub-index 120 = yellow');
+assert(card._getAQISubIndexColor(180) === '#ff9800', 'Sub-index 180 = orange');
+assert(card._getAQISubIndexColor(250) === '#f44336', 'Sub-index 250 = red');
+assert(card._getAQISubIndexColor(400) === '#b71c1c', 'Sub-index 400 = dark red');
+
+section('AQI Sub-Index Status');
+assert(card._getAQISubIndexStatus(30) === 'Good', 'Sub-index 30 = Good');
+assert(card._getAQISubIndexStatus(75) === 'Moderate', 'Sub-index 75 = Moderate');
+assert(card._getAQISubIndexStatus(120) === 'USG', 'Sub-index 120 = USG');
+assert(card._getAQISubIndexStatus(180) === 'Unhealthy', 'Sub-index 180 = Unhealthy');
+assert(card._getAQISubIndexStatus(250) === 'Very Unhealthy', 'Sub-index 250 = Very Unhealthy');
+assert(card._getAQISubIndexStatus(400) === 'Hazardous', 'Sub-index 400 = Hazardous');
+
+// ============================================================
 // RECOMMENDATION WATERFALL TESTS
 // ============================================================
 
 // Helper to set up hass states for recommendation testing
 function setStates(states) {
   card._hass.states = {};
+  card._hass.entities = {};
   card._config = {
     name: 'Test',
     hours_to_show: 24,
@@ -266,6 +327,23 @@ card._config.outdoor_pm25_entity = 'sensor.outdoor_pm25';
 card._hass.states['sensor.outdoor_pm25'] = { state: '50' };
 assert(card._getRecommendation() === 'Run Air Purifier', 'Combo rec falls back to purifier when outdoor worse');
 
+section('Recommendation — AQI-based outdoor advisory');
+setStates({ co2: 400, pm25: 3 });
+card._config.air_quality_entity = 'sensor.aqi';
+card._hass.states['sensor.aqi'] = { state: '175' };
+assert(card._getRecommendation() === 'Limit Outdoor Exposure', 'AQI > 150 = Limit Outdoor Exposure');
+
+setStates({ co2: 400, pm25: 3 });
+card._config.air_quality_entity = 'sensor.aqi';
+card._hass.states['sensor.aqi'] = { state: '50' };
+assert(card._getRecommendation() === 'All Good', 'AQI 50 = All Good (no outdoor limit)');
+
+// AQI does not override CO safety
+setStates({ co: 150 });
+card._config.air_quality_entity = 'sensor.aqi';
+card._hass.states['sensor.aqi'] = { state: '300' };
+assert(card._getRecommendation() === 'CO Danger — Leave Area', 'CO Danger takes priority over AQI');
+
 // ============================================================
 // RECOMMENDATION ICON TESTS
 // ============================================================
@@ -279,6 +357,7 @@ assert(card._getRecommendationIcon('Consider Air Purifier') === 'mdi:air-purifie
 assert(card._getRecommendationIcon('Run Air Purifier') === 'mdi:air-purifier', 'Run Air Purifier icon');
 assert(card._getRecommendationIcon('Open Window') === 'mdi:window-open-variant', 'Open Window icon');
 assert(card._getRecommendationIcon('Keep Windows Closed') === 'mdi:window-closed-variant', 'Keep Windows Closed icon');
+assert(card._getRecommendationIcon('Limit Outdoor Exposure') === 'mdi:shield-alert', 'Limit Outdoor Exposure icon');
 
 // ============================================================
 // CONFIG VALIDATION TESTS
@@ -294,13 +373,33 @@ assert(threw, 'Empty config throws');
 // Should accept any single sensor
 const singleSensorConfigs = [
   'co2_entity', 'pm25_entity', 'pm1_entity', 'pm10_entity', 'pm03_entity',
-  'hcho_entity', 'tvoc_entity', 'co_entity', 'radon_entity', 'humidity_entity', 'temperature_entity'
+  'hcho_entity', 'tvoc_entity', 'co_entity', 'radon_entity', 'humidity_entity', 'temperature_entity',
+  'no2_entity', 'o3_entity', 'so2_entity', 'air_quality_entity'
 ];
 for (const key of singleSensorConfigs) {
   let ok = true;
   try { card.setConfig({ [key]: 'sensor.test' }); } catch (e) { ok = false; }
   assert(ok, `Single ${key} accepted`);
 }
+
+section('Config Validation — Outdoor-only');
+
+// Should accept outdoor-only entities
+const outdoorOnlyConfigs = [
+  'outdoor_co2_entity', 'outdoor_pm25_entity', 'outdoor_pm1_entity', 'outdoor_pm10_entity',
+  'outdoor_co_entity', 'outdoor_no2_entity', 'outdoor_o3_entity', 'outdoor_so2_entity',
+  'outdoor_humidity_entity', 'outdoor_temperature_entity'
+];
+for (const key of outdoorOnlyConfigs) {
+  let ok = true;
+  try { card.setConfig({ [key]: 'sensor.test' }); } catch (e) { ok = false; }
+  assert(ok, `Outdoor-only ${key} accepted`);
+}
+
+section('Config Validation — WAQI device');
+let waqiOk = true;
+try { card.setConfig({ waqi_device: 'abc123' }); } catch (e) { waqiOk = false; }
+assert(waqiOk, 'waqi_device alone is valid config');
 
 // Defaults
 card.setConfig({ co2_entity: 'sensor.co2' });
@@ -336,6 +435,23 @@ assert(card._getOverallStatus().status === 'Good', 'CO2 700 = Good');
 
 setStates({ co2: 400 });
 assert(card._getOverallStatus().status === 'Excellent', 'CO2 400 = Excellent');
+
+section('Overall Status — AQI entity (numeric)');
+setStates({});
+card._config.air_quality_entity = 'sensor.aqi';
+card._hass.states['sensor.aqi'] = { state: '42' };
+const aqiStatus = card._getOverallStatus();
+assert(aqiStatus.status === 'Good', 'AQI 42 = Good status');
+assert(aqiStatus.color === '#4caf50', 'AQI 42 = green');
+
+card._hass.states['sensor.aqi'] = { state: '155' };
+assert(card._getOverallStatus().status === 'Unhealthy', 'AQI 155 = Unhealthy status');
+
+card._hass.states['sensor.aqi'] = { state: '275' };
+assert(card._getOverallStatus().status === 'Very Unhealthy', 'AQI 275 = Very Unhealthy');
+
+card._hass.states['sensor.aqi'] = { state: '350' };
+assert(card._getOverallStatus().status === 'Hazardous', 'AQI 350 = Hazardous');
 
 // ============================================================
 // TEMPERATURE UNIT DETECTION
@@ -516,7 +632,189 @@ card._config.pm1_entity = 'sensor.pm1';
 card._config.pm03_entity = 'sensor.pm03';
 card._config.hcho_entity = 'sensor.hcho';
 card._config.tvoc_entity = 'sensor.tvoc';
-assert(card.getCardSize() === 14, 'All 11 sensors = 14');
+assert(card.getCardSize() === 14, 'All 11 original sensors = 14');
+
+section('Card Size — New sensors');
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+card._config.no2_entity = 'sensor.no2';
+assert(card.getCardSize() === 4, 'NO2 adds 1');
+
+card._config.o3_entity = 'sensor.o3';
+card._config.so2_entity = 'sensor.so2';
+assert(card.getCardSize() === 6, 'NO2 + O3 + SO2 = base + 3');
+
+card._config.air_quality_entity = 'sensor.aqi';
+assert(card.getCardSize() === 7, 'AQI entity adds 1');
+
+section('Card Size — Outdoor-only');
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+card._config.outdoor_pm25_entity = 'sensor.outdoor_pm25';
+assert(card.getCardSize() === 4, 'Outdoor PM2.5 only = base + 1');
+
+card._config.outdoor_temperature_entity = 'sensor.outdoor_temp';
+card._config.outdoor_no2_entity = 'sensor.outdoor_no2';
+assert(card.getCardSize() === 6, 'Three outdoor-only sensors = base + 3');
+
+// ============================================================
+// OUTDOOR-ONLY DISPLAY TESTS
+// ============================================================
+
+section('Outdoor-Only Display Flags');
+
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+card._config.outdoor_pm25_entity = 'sensor.outdoor_pm25';
+assert(card._hasOutdoorOnly('pm25') === true, 'PM2.5 is outdoor-only when no indoor entity');
+
+card._config.pm25_entity = 'sensor.indoor_pm25';
+assert(card._hasOutdoorOnly('pm25') === false, 'PM2.5 not outdoor-only when indoor entity exists');
+
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+card._config.outdoor_no2_entity = 'sensor.outdoor_no2';
+assert(card._hasOutdoorOnly('no2') === true, 'NO2 is outdoor-only');
+
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+assert(card._hasOutdoorOnly('pm25') === false, 'No outdoor-only when no entities at all');
+
+section('Effective Entity Resolution');
+
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+card._config.pm25_entity = 'sensor.indoor_pm25';
+card._config.outdoor_pm25_entity = 'sensor.outdoor_pm25';
+assert(card._getEffectiveEntity('pm25') === 'sensor.indoor_pm25', 'Indoor entity preferred');
+
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+card._config.outdoor_pm25_entity = 'sensor.outdoor_pm25';
+assert(card._getEffectiveEntity('pm25') === 'sensor.outdoor_pm25', 'Outdoor entity used when no indoor');
+
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+assert(card._getEffectiveEntity('pm25') === null, 'null when no entity');
+
+// ============================================================
+// WAQI ENTITY DETECTION TESTS
+// ============================================================
+
+section('WAQI Entity Detection');
+
+card._hass.entities = {
+  'sensor.beijing_pm25': { device_id: 'waqi_device_1', platform: 'waqi', translation_key: 'pm25' },
+  'sensor.beijing_air_quality_index': { device_id: 'waqi_device_1', platform: 'waqi' },
+  'sensor.indoor_pm25': { device_id: 'indoor_device', platform: 'airthings' },
+};
+card._waqiEntityIds = new Set();
+
+assert(card._isWaqiEntity('sensor.beijing_pm25') === true, 'WAQI entity detected by platform');
+assert(card._isWaqiEntity('sensor.indoor_pm25') === false, 'Non-WAQI entity not detected');
+assert(card._isWaqiEntity('sensor.unknown') === false, 'Unknown entity not detected');
+assert(card._isWaqiEntity(null) === false, 'null entity not detected');
+
+section('WAQI Entity Resolution');
+
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto', waqi_device: 'waqi_device_1' };
+card._hass.entities = {
+  'sensor.beijing_pm2_5': { device_id: 'waqi_device_1', platform: 'waqi', translation_key: 'pm25' },
+  'sensor.beijing_pm10': { device_id: 'waqi_device_1', platform: 'waqi', translation_key: 'pm10' },
+  'sensor.beijing_air_quality_index': { device_id: 'waqi_device_1', platform: 'waqi' },
+  'sensor.beijing_humidity': { device_id: 'waqi_device_1', platform: 'waqi' },
+  'sensor.beijing_temperature': { device_id: 'waqi_device_1', platform: 'waqi' },
+  'sensor.beijing_carbon_monoxide': { device_id: 'waqi_device_1', platform: 'waqi', translation_key: 'carbon_monoxide' },
+  'sensor.beijing_nitrogen_dioxide': { device_id: 'waqi_device_1', platform: 'waqi', translation_key: 'nitrogen_dioxide' },
+  'sensor.beijing_ozone': { device_id: 'waqi_device_1', platform: 'waqi', translation_key: 'ozone' },
+  'sensor.beijing_sulphur_dioxide': { device_id: 'waqi_device_1', platform: 'waqi', translation_key: 'sulphur_dioxide' },
+  'sensor.beijing_dominant_pollutant': { device_id: 'waqi_device_1', platform: 'waqi', translation_key: 'dominant_pollutant' },
+};
+card._hass.states = {
+  'sensor.beijing_pm2_5': { state: '75', attributes: {} },
+  'sensor.beijing_pm10': { state: '85', attributes: {} },
+  'sensor.beijing_air_quality_index': { state: '120', attributes: { device_class: 'aqi' } },
+  'sensor.beijing_humidity': { state: '65', attributes: { device_class: 'humidity' } },
+  'sensor.beijing_temperature': { state: '28', attributes: { device_class: 'temperature' } },
+  'sensor.beijing_carbon_monoxide': { state: '3', attributes: {} },
+  'sensor.beijing_nitrogen_dioxide': { state: '45', attributes: {} },
+  'sensor.beijing_ozone': { state: '68', attributes: {} },
+  'sensor.beijing_sulphur_dioxide': { state: '12', attributes: {} },
+  'sensor.beijing_dominant_pollutant': { state: 'pm25', attributes: {} },
+};
+card._waqiResolved = false;
+card._waqiEntityIds = new Set();
+card._resolveWaqiEntities();
+
+assert(card._config.air_quality_entity === 'sensor.beijing_air_quality_index', 'WAQI resolves air_quality_entity via device_class');
+assert(card._config.outdoor_pm25_entity === 'sensor.beijing_pm2_5', 'WAQI resolves outdoor_pm25_entity via translation_key');
+assert(card._config.outdoor_pm10_entity === 'sensor.beijing_pm10', 'WAQI resolves outdoor_pm10_entity via translation_key');
+assert(card._config.outdoor_humidity_entity === 'sensor.beijing_humidity', 'WAQI resolves outdoor_humidity_entity via device_class');
+assert(card._config.outdoor_temperature_entity === 'sensor.beijing_temperature', 'WAQI resolves outdoor_temperature_entity via device_class');
+assert(card._config.outdoor_co_entity === 'sensor.beijing_carbon_monoxide', 'WAQI resolves outdoor_co_entity via translation_key');
+assert(card._config.outdoor_no2_entity === 'sensor.beijing_nitrogen_dioxide', 'WAQI resolves outdoor_no2_entity via translation_key');
+assert(card._config.outdoor_o3_entity === 'sensor.beijing_ozone', 'WAQI resolves outdoor_o3_entity via translation_key');
+assert(card._config.outdoor_so2_entity === 'sensor.beijing_sulphur_dioxide', 'WAQI resolves outdoor_so2_entity via translation_key');
+
+section('WAQI Resolution — Manual overrides preserved');
+
+card._config = {
+  name: 'Test', hours_to_show: 24, temperature_unit: 'auto',
+  waqi_device: 'waqi_device_1',
+  outdoor_pm25_entity: 'sensor.my_custom_pm25' // manual override
+};
+card._waqiResolved = false;
+card._waqiEntityIds = new Set();
+card._resolveWaqiEntities();
+
+assert(card._config.outdoor_pm25_entity === 'sensor.my_custom_pm25', 'Manual override preserved over WAQI auto-resolve');
+assert(card._config.outdoor_pm10_entity === 'sensor.beijing_pm10', 'Non-overridden WAQI entity still resolved');
+
+section('WAQI AQI Sub-Index Color Selection');
+
+// With conversion, WAQI entities now use standard raw-concentration color functions.
+// _getColorFn should return the normal PM2.5 color function (not AQI sub-index).
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+card._config.outdoor_pm25_entity = 'sensor.beijing_pm25';
+card._hass.entities = {
+  'sensor.beijing_pm25': { device_id: 'waqi_device_1', platform: 'waqi' },
+};
+card._waqiEntityIds = new Set(['sensor.beijing_pm25']);
+
+const pm25ColorFn = card._getColorFn('pm25');
+// Now uses raw concentration thresholds (values are converted before being passed to color fn)
+assert(pm25ColorFn(3) === '#4caf50', 'PM2.5 color fn uses raw concentration scale: 3 = green');
+assert(pm25ColorFn(30) === '#ff9800', 'PM2.5 color fn uses raw concentration scale: 30 = orange');
+
+// Non-WAQI PM2.5 uses the same raw concentration thresholds
+card._config.pm25_entity = 'sensor.indoor_pm25';
+card._config.outdoor_pm25_entity = null;
+card._hass.entities = {
+  'sensor.indoor_pm25': { device_id: 'indoor_device', platform: 'airthings' },
+};
+card._waqiEntityIds = new Set();
+
+const rawPm25ColorFn = card._getColorFn('pm25');
+assert(rawPm25ColorFn(3) === '#4caf50', 'Raw PM2.5 3 μg/m³ = green');
+assert(rawPm25ColorFn(30) === '#ff9800', 'Raw PM2.5 30 μg/m³ = orange');
+
+section('WAQI Sensor Unit');
+
+// With conversion, WAQI pollutant sensors now report in standard units (not 'AQI').
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+card._config.outdoor_pm25_entity = 'sensor.beijing_pm25';
+card._hass.entities = {
+  'sensor.beijing_pm25': { device_id: 'waqi_device_1', platform: 'waqi' },
+};
+card._waqiEntityIds = new Set(['sensor.beijing_pm25']);
+
+assert(card._getSensorUnit('pm25') === 'μg/m³', 'WAQI PM2.5 unit = μg/m³ (converted from sub-index)');
+assert(card._getSensorUnit('pm10') === 'μg/m³', 'WAQI PM10 unit = μg/m³');
+assert(card._getSensorUnit('co') === 'ppm', 'WAQI CO unit = ppm');
+assert(card._getSensorUnit('no2') === 'ppb', 'WAQI NO2 unit = ppb');
+assert(card._getSensorUnit('o3') === 'ppb', 'WAQI O3 unit = ppb');
+assert(card._getSensorUnit('so2') === 'ppb', 'WAQI SO2 unit = ppb');
+
+card._config.pm25_entity = 'sensor.indoor_pm25';
+card._config.outdoor_pm25_entity = null;
+card._hass.entities = {
+  'sensor.indoor_pm25': { device_id: 'indoor_device', platform: 'airthings' },
+};
+card._waqiEntityIds = new Set();
+
+assert(card._getSensorUnit('pm25') === 'μg/m³', 'Raw PM2.5 unit = μg/m³');
 
 // ============================================================
 // GETCONFIG FORM TESTS
@@ -540,10 +838,13 @@ assert(typeof editor._computeLabel === 'function', 'computeLabel is a function')
 
 // Check all expected labels exist
 const allLabels = [
-  'name', 'co2_entity', 'pm25_entity', 'humidity_entity', 'temperature_entity',
+  'name', 'waqi_device',
+  'co2_entity', 'pm25_entity', 'humidity_entity', 'temperature_entity',
   'radon_entity', 'radon_longterm_entity', 'co_entity', 'hcho_entity', 'tvoc_entity', 'pm1_entity', 'pm10_entity', 'pm03_entity',
+  'no2_entity', 'o3_entity', 'so2_entity',
   'outdoor_co2_entity', 'outdoor_pm25_entity', 'outdoor_humidity_entity', 'outdoor_temperature_entity',
   'outdoor_co_entity', 'outdoor_hcho_entity', 'outdoor_tvoc_entity',
+  'outdoor_no2_entity', 'outdoor_o3_entity', 'outdoor_so2_entity',
   'outdoor_pm1_entity', 'outdoor_pm10_entity', 'outdoor_pm03_entity',
   'air_quality_entity', 'hours_to_show', 'temperature_unit', 'radon_unit'
 ];
@@ -560,6 +861,10 @@ function findExpandable(schemaArr, title) {
   return null;
 }
 
+const waqiSection = findExpandable(schema, 'WAQI Integration');
+assert(waqiSection !== null, 'WAQI Integration expandable exists');
+assert(waqiSection.flatten === true, 'WAQI Integration has flatten: true');
+
 const additionalSection = findExpandable(schema, 'Additional Sensors');
 assert(additionalSection !== null, 'Additional Sensors expandable exists');
 assert(additionalSection.flatten === true, 'Additional Sensors has flatten: true');
@@ -572,6 +877,25 @@ const advancedSection = findExpandable(schema, 'Advanced');
 assert(advancedSection !== null, 'Advanced expandable exists');
 assert(advancedSection.flatten === true, 'Advanced has flatten: true');
 
+// Check that NO2, O3, SO2 are in the Additional Sensors section
+function findFieldInSchema(schemaArr, fieldName) {
+  for (const item of schemaArr) {
+    if (item.name === fieldName) return true;
+    if (item.schema) {
+      if (findFieldInSchema(item.schema, fieldName)) return true;
+    }
+  }
+  return false;
+}
+
+assert(findFieldInSchema(additionalSection.schema, 'no2_entity'), 'NO2 entity in Additional Sensors');
+assert(findFieldInSchema(additionalSection.schema, 'o3_entity'), 'O3 entity in Additional Sensors');
+assert(findFieldInSchema(additionalSection.schema, 'so2_entity'), 'SO2 entity in Additional Sensors');
+
+assert(findFieldInSchema(outdoorSection.schema, 'outdoor_no2_entity'), 'Outdoor NO2 in Outdoor Sensors');
+assert(findFieldInSchema(outdoorSection.schema, 'outdoor_o3_entity'), 'Outdoor O3 in Outdoor Sensors');
+assert(findFieldInSchema(outdoorSection.schema, 'outdoor_so2_entity'), 'Outdoor SO2 in Outdoor Sensors');
+
 // ============================================================
 // HISTORY KEYS TEST
 // ============================================================
@@ -580,15 +904,176 @@ section('History Keys');
 
 const freshCard = new CardClass();
 const expectedKeys = [
+  'aqi',
   'co2', 'pm25', 'pm1', 'pm10', 'pm03', 'hcho', 'tvoc', 'co', 'radon', 'radon_longterm',
+  'nox', 'no2', 'o3', 'so2',
   'humidity', 'temperature',
   'outdoor_co2', 'outdoor_pm25', 'outdoor_pm1', 'outdoor_pm10', 'outdoor_pm03',
   'outdoor_hcho', 'outdoor_tvoc', 'outdoor_co',
+  'outdoor_no2', 'outdoor_o3', 'outdoor_so2',
   'outdoor_humidity', 'outdoor_temperature'
 ];
 for (const key of expectedKeys) {
   assert(Array.isArray(freshCard._history[key]), `History key '${key}' exists and is array`);
 }
+
+// ============================================================
+// PM4 COLOR TESTS (existing but was missing from original tests)
+// ============================================================
+
+section('PM4 Color');
+assert(card._getPM4Color(5) === '#4caf50', 'PM4 5 = green');
+assert(card._getPM4Color(15) === '#8bc34a', 'PM4 15 = light green');
+assert(card._getPM4Color(30) === '#ffc107', 'PM4 30 = yellow');
+assert(card._getPM4Color(45) === '#ff9800', 'PM4 45 = orange');
+assert(card._getPM4Color(60) === '#f44336', 'PM4 60 = red');
+
+section('NOx Color');
+assert(card._getNOxColor(10) === '#4caf50', 'NOx 10 = green');
+assert(card._getNOxColor(30) === '#8bc34a', 'NOx 30 = light green');
+assert(card._getNOxColor(100) === '#ffc107', 'NOx 100 = yellow');
+assert(card._getNOxColor(200) === '#ff9800', 'NOx 200 = orange');
+assert(card._getNOxColor(300) === '#f44336', 'NOx 300 = red');
+
+// ============================================================
+// SENSOR STATUS TESTS
+// ============================================================
+
+section('Sensor Status — Standard sensors');
+
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'C' };
+card._config.co2_entity = 'sensor.co2';
+card._hass.states = { 'sensor.co2': { state: '400' } };
+card._hass.entities = { 'sensor.co2': { device_id: 'd1', platform: 'esphome' } };
+card._waqiEntityIds = new Set();
+
+assert(card._getSensorStatus('co2', 400) === 'Excellent', 'CO2 400 status = Excellent');
+assert(card._getSensorStatus('co2', 900) === 'Good', 'CO2 900 status = Good');
+assert(card._getSensorStatus('co2', 1200) === 'Elevated', 'CO2 1200 status = Elevated');
+assert(card._getSensorStatus('co2', 2000) === 'Poor', 'CO2 2000 status = Poor');
+
+assert(card._getSensorStatus('humidity', 25) === 'Too Dry', 'Humidity 25 status = Too Dry');
+assert(card._getSensorStatus('humidity', 45) === 'Comfortable', 'Humidity 45 status = Comfortable');
+assert(card._getSensorStatus('humidity', 70) === 'Too Humid', 'Humidity 70 status = Too Humid');
+
+section('Sensor Status — WAQI sub-index sensors');
+
+// With conversion, WAQI values are in raw concentration — use standard status functions.
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+card._config.outdoor_pm25_entity = 'sensor.waqi_pm25';
+card._hass.entities = { 'sensor.waqi_pm25': { device_id: 'w1', platform: 'waqi' } };
+card._waqiEntityIds = new Set(['sensor.waqi_pm25']);
+
+// Values passed to _getSensorStatus are already converted to raw concentration
+assert(card._getSensorStatus('pm25', 3) === 'Excellent', 'PM2.5 3 μg/m³ status = Excellent');
+assert(card._getSensorStatus('pm25', 10) === 'Good', 'PM2.5 10 μg/m³ status = Good');
+assert(card._getSensorStatus('pm25', 30) === 'Elevated', 'PM2.5 30 μg/m³ status = Elevated');
+
+// ============================================================
+// AQI SUB-INDEX TO CONCENTRATION CONVERSION
+// ============================================================
+
+section('AQI Sub-Index to Concentration — PM2.5');
+
+// PM2.5 breakpoints: [0-50] → [0-9], [51-100] → [9.1-35.4], etc.
+let c;
+c = card._aqiSubIndexToConcentration(0, 'pm25');
+assert(Math.abs(c - 0) < 0.1, `PM2.5 AQI 0 → 0 μg/m³ (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(50, 'pm25');
+assert(Math.abs(c - 9.0) < 0.1, `PM2.5 AQI 50 → 9.0 μg/m³ (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(51, 'pm25');
+assert(Math.abs(c - 9.1) < 0.2, `PM2.5 AQI 51 → ~9.1 μg/m³ (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(100, 'pm25');
+assert(Math.abs(c - 35.4) < 0.1, `PM2.5 AQI 100 → 35.4 μg/m³ (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(150, 'pm25');
+assert(Math.abs(c - 55.4) < 0.1, `PM2.5 AQI 150 → 55.4 μg/m³ (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(75, 'pm25');
+assert(c > 9 && c < 35.4, `PM2.5 AQI 75 → between 9 and 35.4 (got ${c.toFixed(2)})`);
+
+section('AQI Sub-Index to Concentration — PM10');
+
+c = card._aqiSubIndexToConcentration(0, 'pm10');
+assert(Math.abs(c - 0) < 0.1, `PM10 AQI 0 → 0 μg/m³ (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(50, 'pm10');
+assert(Math.abs(c - 54) < 0.5, `PM10 AQI 50 → 54 μg/m³ (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(100, 'pm10');
+assert(Math.abs(c - 154) < 0.5, `PM10 AQI 100 → 154 μg/m³ (got ${c.toFixed(2)})`);
+
+section('AQI Sub-Index to Concentration — CO');
+
+c = card._aqiSubIndexToConcentration(50, 'co');
+assert(Math.abs(c - 4.4) < 0.1, `CO AQI 50 → 4.4 ppm (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(100, 'co');
+assert(Math.abs(c - 9.4) < 0.1, `CO AQI 100 → 9.4 ppm (got ${c.toFixed(2)})`);
+
+section('AQI Sub-Index to Concentration — NO2');
+
+c = card._aqiSubIndexToConcentration(50, 'no2');
+assert(Math.abs(c - 53) < 0.5, `NO2 AQI 50 → 53 ppb (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(100, 'no2');
+assert(Math.abs(c - 100) < 0.5, `NO2 AQI 100 → 100 ppb (got ${c.toFixed(2)})`);
+
+section('AQI Sub-Index to Concentration — O3');
+
+c = card._aqiSubIndexToConcentration(50, 'o3');
+assert(Math.abs(c - 54) < 0.5, `O3 AQI 50 → 54 ppb (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(100, 'o3');
+assert(Math.abs(c - 70) < 0.5, `O3 AQI 100 → 70 ppb (got ${c.toFixed(2)})`);
+
+section('AQI Sub-Index to Concentration — SO2');
+
+c = card._aqiSubIndexToConcentration(50, 'so2');
+assert(Math.abs(c - 35) < 0.5, `SO2 AQI 50 → 35 ppb (got ${c.toFixed(2)})`);
+
+c = card._aqiSubIndexToConcentration(100, 'so2');
+assert(Math.abs(c - 75) < 0.5, `SO2 AQI 100 → 75 ppb (got ${c.toFixed(2)})`);
+
+section('AQI Sub-Index to Concentration — Edge cases');
+
+// Unknown sensor type — returns value unchanged
+c = card._aqiSubIndexToConcentration(75, 'unknown');
+assert(c === 75, 'Unknown sensor type returns value unchanged');
+
+// Clamped to 0
+c = card._aqiSubIndexToConcentration(-10, 'pm25');
+assert(Math.abs(c - 0) < 0.1, 'Negative AQI clamped to 0');
+
+// Clamped to 500
+c = card._aqiSubIndexToConcentration(600, 'pm25');
+assert(Math.abs(c - 500.4) < 0.5, 'AQI > 500 clamped to 500');
+
+section('_convertWaqiValue — WAQI entity conversion');
+
+card._config = { name: 'Test', hours_to_show: 24, temperature_unit: 'auto' };
+card._config.outdoor_pm25_entity = 'sensor.waqi_pm25';
+card._hass.entities = { 'sensor.waqi_pm25': { device_id: 'w1', platform: 'waqi' } };
+card._waqiEntityIds = new Set(['sensor.waqi_pm25']);
+
+// WAQI outdoor PM2.5 sub-index 75 should be converted to μg/m³
+const converted = card._convertWaqiValue('pm25', 75);
+assert(converted > 9 && converted < 35.4, `WAQI PM2.5 75 converted to ${converted.toFixed(1)} μg/m³`);
+
+// AQI type is never converted
+card._config.outdoor_pm25_entity = null;
+const aqiVal = card._convertWaqiValue('aqi', 75);
+assert(aqiVal === 75, 'AQI type is never converted');
+
+// Non-WAQI entity — value returned unchanged
+card._config.outdoor_pm25_entity = 'sensor.regular_pm25';
+card._hass.entities = { 'sensor.regular_pm25': { device_id: 'r1', platform: 'other' } };
+card._waqiEntityIds = new Set();
+const nonWaqi = card._convertWaqiValue('pm25', 75);
+assert(nonWaqi === 75, 'Non-WAQI value returned unchanged');
 
 // ============================================================
 // SUMMARY
